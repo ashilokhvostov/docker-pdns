@@ -1,21 +1,24 @@
-FROM ubuntu:xenial
-MAINTAINER Patrick Oberdorf <patrick@oberdorf.net>
+FROM ubuntu:18.04
+MAINTAINER Shilokhvostov Alexander <ashilokhvostov@tradeshift.com>
 
 COPY assets/apt/preferences.d/pdns /etc/apt/preferences.d/pdns
-RUN apt-get update && apt-get install -y curl sudo \
-	&& curl https://repo.powerdns.com/FD380FBB-pub.asc | sudo apt-key add - \
-	&& echo "deb [arch=amd64] http://repo.powerdns.com/ubuntu xenial-auth-40 main" > /etc/apt/sources.list.d/pdns.list
+
+ENV DEBIAN_FRONTEND noninteractive
+RUN apt-get update && apt-get install -y curl \
+    software-properties-common
+
+RUN add-apt-repository -y ppa:ondrej/php
 
 RUN apt-get update && apt-get install -y \
 	wget \
-	netcat-openbsd \
 	git \
 	supervisor \
 	mysql-client \
 	nginx \
-	php7.0-fpm \
-	php7.0-mcrypt \
-	php7.0-mysqlnd \
+	netcat \
+	php5.6-fpm \
+	php5.6-mcrypt \
+	php5.6-mysql \
 	pdns-server \
 	pdns-backend-mysql \
 	&& apt-get clean \
@@ -30,8 +33,8 @@ COPY assets/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY assets/nginx/vhost.conf /etc/nginx/sites-enabled/vhost.conf
 COPY assets/nginx/fastcgi_params /etc/nginx/fastcgi_params
 
-COPY assets/php/php.ini /etc/php/7.0/fpm/php.ini
-COPY assets/php/php-cli.ini /etc/php/7.0/cli/php.ini
+COPY assets/php/php.ini /etc/php/5.6/fpm/php.ini
+COPY assets/php/php-cli.ini /etc/php/5.6/cli/php.ini
 
 COPY assets/pdns/pdns.conf /etc/powerdns/pdns.conf
 COPY assets/pdns/pdns.d/ /etc/powerdns/pdns.d/
@@ -40,24 +43,22 @@ COPY assets/mysql/pdns.sql /pdns.sql
 ### PHP/Nginx ###
 RUN rm /etc/nginx/sites-enabled/default
 RUN phpenmod mcrypt
-RUN mkdir -p /run/php/
 RUN mkdir -p /var/www/html/ \
 	&& cd /var/www/html \
-	&& rm -rf /var/www/html/* \
+	&& rm -rf ./* \
 	&& git clone https://github.com/poweradmin/poweradmin.git . \
-	&& git checkout b27f28b2d586afb201904437605be988ee048c22 \
+	&& git checkout 772946ad40c765fece19aafbefd04fa23745e8ec \
 	&& rm -R /var/www/html/install
 
 COPY assets/poweradmin/config.inc.php /var/www/html/inc/config.inc.php
 COPY assets/mysql/poweradmin.sql /poweradmin.sql
-RUN chown -R www-data:www-data /var/www/html/ \
-	&& chmod 644 /etc/powerdns/pdns.d/pdns.*
+RUN chown -R www-data:www-data /var/www/html
 
 ### SUPERVISOR ###
 COPY assets/supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 COPY start.sh /start.sh
 
-EXPOSE 53 80
+EXPOSE 53 80 81
 EXPOSE 53/udp
 
 CMD ["/bin/bash", "/start.sh"]
